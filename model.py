@@ -6,6 +6,7 @@ from transformers import Wav2Vec2Processor, HubertModel
 from utils import get_class_dicts
 
 
+# AF-Block 
 class CMSA(nn.Module):
   def __init__(self, in_channels, out_channels, hidden_dims, num_head):
     super(CMSA, self).__init__()
