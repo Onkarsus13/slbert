@@ -4,7 +4,7 @@ from transformers import AutoModel
 from utils import get_class_dicts
 from transformers import Wav2Vec2Processor, HubertModel
 from utils import get_class_dicts
-
+from transformers import AutoImageProcessor, TimesformerModel
 
 # AF-Block 
 class CMSA(nn.Module):
@@ -30,7 +30,7 @@ class CMSA(nn.Module):
     return x
 
 
-class SLBert(nn.Module):
+class SLBertVdapter(nn.Module):
 
     def __init__(self, num_heads, dims, num_actions, num_objects, num_locations):
       
@@ -40,6 +40,18 @@ class SLBert(nn.Module):
       self.bert.config.output_hidden_states = True
       self.hubert = HubertModel.from_pretrained("superb/hubert-base-superb-ks")
       self.hubert.config.output_hidden_states = True
+      
+      self.timesformer = TimesformerModel.from_pretrained("facebook/timesformer-base-finetuned-k400")
+      self.timesformer.config.output_hidden_states = True
+      
+      for params in self.timesformer.parameters():
+        params.required_grad = False
+       
+      for params in self.bert.parameters():
+        params.required_grad = False
+
+      for params in self.hubert.parameters():
+        params.required_grad = False
 
       self.msalist = nn.ModuleList([])
 
@@ -51,16 +63,17 @@ class SLBert(nn.Module):
       self.o = nn.Linear(dims, num_objects)
 
 
-    def forward(self, sent_id, mask, mels):
+    def forward(self, sent_id, mask, mels, video_frames):
 
       #pass the inputs to the model  
       bert_hidden = self.bert(sent_id, attention_mask=mask)
       hubert_hidden = self.hubert(mels)
+      timesformer_hidden = self.timesformer(video_frames)
 
       init_hidden = torch.zeros_like(bert_hidden.hidden_states[0])
-      for idx, (i, j) in enumerate(zip(bert_hidden.hidden_states, hubert_hidden.hidden_states)):
+      for idx, (i, j, k) in enumerate(zip(bert_hidden.hidden_states, hubert_hidden.hidden_states, timesformer_hidden.hidden_states)):
         i += init_hidden
-        x = self.msalist[idx](i, j, j)
+        x = self.msalist[idx](i, k, j)
         init_hidden = x
 
       action = self.a(x.mean(1))
